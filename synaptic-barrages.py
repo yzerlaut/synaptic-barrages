@@ -113,6 +113,10 @@ def compute_network_states_and_responses(data, args):
     data['Vm_Responses'] = np.array(Vm_Responses)
     data['Spike_Responses'] = Spike_Responses
     data['LFP_levels'] = np.array(LFP_levels)
+    data['Firing_levels_pre'] = np.array(Firing_levels_pre)
+    data['Firing_levels_post'] = np.array(Firing_levels_post)
+    data['Depol_levels_pre'] = np.array(Depol_levels_pre)
+    data['Depol_levels_post'] = np.array(Depol_levels_post)
 
     for i in range(args.N_state_discretization):
         lower = np.percentile(data['LFP_levels'], i*100./args.N_state_discretization)
@@ -193,7 +197,7 @@ def make_trial_average_figure(data, args):
     """
     # run analysis
     compute_network_states_and_responses(data, args)
-    
+
     data['freq_levels'] = np.unique(data['Freq_levels'])
     
     fig, AX = figure(figsize=(.2*len(data['freq_levels']),.4),
@@ -230,18 +234,18 @@ def make_trial_average_figure(data, args):
                               color=COLORS[i], ms=args.ms)
 
             AX[0][a].fill_between([1e3*data['t_window'][0],1e3*data['t_window'][-1]],
-                                  i*(number_of_common_trials+2)*np.ones(2), 
+                                  i*(number_of_common_trials+2)*np.ones(2)-1, 
                                   i*(number_of_common_trials+2)*np.ones(2)+number_of_common_trials, 
                                   color=COLORS[i], alpha=.3, lw=0)
                 
         AX[0][a].set_title(r'$\nu_{e}^{stim}$='+str(int(f))+'Hz')
-        AX[0][a].plot(1e3*data['t_window'], 0*data['t_window'], 'w-')
         AX[1][a].plot([0,0], args.Vm_lim, 'w.', ms=1e-8, alpha=0)
         if (a==0):
             AX[0][a].plot(1e3*data['t_window'][0]*np.ones(2),
-                      k+i*(number_of_common_trials+2)-np.arange(2)*number_of_common_trials,
+                      args.N_state_discretization*(number_of_common_trials+2)-np.arange(2)*number_of_common_trials-2,
                       'k-', lw=1)
-            AX[0][a].annotate(str(number_of_common_trials)+'trials', (1e3*data['t_window'][0], k+i*(number_of_common_trials+2)))
+            AX[0][a].annotate(str(number_of_common_trials)+'trials', (1e3*data['t_window'][0],
+                                                                      args.N_state_discretization*(number_of_common_trials+2)))
             set_plot(AX[1][a], xlabel='time from stim. (ms)', ylabel='Vm (mV)', ylim=args.Vm_lim)
             set_plot(AX[0][a], ['bottom'], ylabel='Spikes', ylim =[-3, AX[0][a].get_ylim()[1]+3])
         else:
@@ -250,90 +254,68 @@ def make_trial_average_figure(data, args):
             
     return fig, AX
 
-def make_conductance_fig(data, args):
+def make_sumup_fig(data, args):
     """
 
     """
     
-    get_response_patterns(data, args)
+    compute_network_states_and_responses(data, args)
 
-    if len(data['freq_levels'])==1:
-        fig, ax = figure(figsize=(.25,.2), left=0.9, top=.8)
-        AX = [[ax]]
-    else:
-        fig, AX = figure(figsize=(.2*len(data['freq_levels']),.2),
-                         axes=(1, len(data['freq_levels'])),
-                         left=0.1/len(data['freq_levels']), top=.8)
     
-    for a in range(len(data['freq_levels'])):
-        for m in range(len(data['muV_levels'])-1):
-            RESP = []
-            for resp in data['RESPONSES'][m][a]:
-                RESP.append(resp)
-            AX[0][a].plot(1e3*data['t_window'], 1e3*np.mean(RESP, axis=0),
-                          '-', lw=0.5, color=viridis(m/(len(data['muV_levels'])-1)))
-        AX[0][a].plot([0,0], args.Vm_lim, 'w.')
-        AX[0][a].set_title('$I_{inj}$='+str(data['freq_levels'][a])+'pA')
-        if (a==0):
-            set_plot(AX[0][a], xlabel='time from stim. (ms)', ylabel='Vm (mV)')
-        else:
-            set_plot(AX[0][a], xlabel='time from stim. (ms)')
-            
-    return fig, AX
+    fig, AX = figure(figsize=(.3, .3),
+                     # axes=(2,2),
+                     axes_extents=[[[3,1],[2,1]],[[3,1],[2,1]]],
+                     wspace=100.5, hspace=2.5,
+                     left=0.8, top=.99)
 
-def make_depol_fig(data, args):
-    """
+    for i in range(args.N_state_discretization):
+        fout, sfout, depol, sdepol, fe = [], [], [], [], []
+        for a, f in enumerate(np.unique(data['Freq_levels'])):
+            # loop over frequency levels
+            cond = (data['Freq_levels']==f)
+            true_cond = data['cond_state_'+str(i+1)] & cond
 
-    """
-    
-    get_response_patterns(data, args)
-    
-    if len(data['freq_levels'])==1:
-        fig, ax = figure(figsize=(.25,.2), left=0.9, top=.8)
-        AX = [[ax]]
-    else:
-        fig, AX = figure(figsize=(.2*len(data['freq_levels']),.2),
-                         axes=(1, len(data['freq_levels'])),
-                         wspace=0.2,
-                         left=0.25, top=.8)
+            fout.append(np.mean(data['Firing_levels_post'][true_cond]-data['Firing_levels_pre'][true_cond]))
+            sfout.append(np.std(data['Firing_levels_post'][true_cond]-data['Firing_levels_pre'][true_cond]))
+            depol.append(np.mean(data['Depol_levels_post'][true_cond]-data['Depol_levels_pre'][true_cond]))
+            sdepol.append(np.std(data['Depol_levels_post'][true_cond]-data['Depol_levels_pre'][true_cond]))
+            fe.append(f)
 
-    Iinj = [[] for m in range(len(data['muV_levels'])-1)]
-    Depol = [[] for m in range(len(data['muV_levels'])-1)]
-
-    for a in range(len(data['freq_levels'])):
-        for m in range(len(data['muV_levels'])-1):
-            for pre_muV, depol in zip(data['PRE_MUV'][m][a], data['DEFLECT_MUV'][m][a]):
-                AX[0][a].plot([1e3*pre_muV], [1e3*depol], 'ko', ms=args.ms)
-                Iinj[m].append(data['freq_levels'][a])
-                Depol[m].append(1e3*depol)
-                
-        AX[0][a].plot(args.Vm_lim, args.Depol_lim, 'w.')
-        AX[0][a].set_title('$I_{inj}$='+str(data['freq_levels'][a])+'pA')
-        if (a==0):
-            set_plot(AX[0][a], xlabel='pre-stim $\mu_V$ (mV)', ylabel='stim-evoked \n depol. (mV)')
-        else:
-            set_plot(AX[0][a], xlabel='pre-stim $\mu_V$ (mV)')
-
-    fig2, ax2 = figure(figsize=(.25,.2), left=0.9, top=.8)
-    for m in range(len(data['muV_levels'])-1):
-        x, y, sy = [], [], []
-        for a in np.unique(Iinj[m]):
-            x.append(a)
-            cond = np.array(Iinj[m])==a
-            y.append(np.mean(np.array(Depol[m])[cond]))
-            sy.append(np.std(np.array(Depol[m])[cond]))
-        ax2.plot(x, y, lw=3, color=viridis(m/(len(data['muV_levels'])-1)))
-        ax2.fill_between(x, np.array(y)-np.array(sy), np.array(y)+np.array(sy), lw=0, alpha=.2,
-                         color=viridis(m/(len(data['muV_levels'])-1)))
+        gain = np.polyfit(1e-3*np.array(fe), 1e3*np.array(depol),1)
+        AX[0][0].plot(np.array(fe), 1e3*np.array(depol), '-', color=COLORS[i], lw=2)
+        # AX[0][0].plot(np.array(fe), np.polyval(gain, 1e-3*np.array(fe)), '--', color=COLORS[i], lw=1)
+        AX[0][0].fill_between(np.array(fe),
+                              1e3*(np.array(depol)-np.array(sdepol)),
+                              1e3*(np.array(depol)+np.array(sdepol)),
+                              lw=0., color=COLORS[i], alpha=.3)
+        AX[0][1].bar([i], [gain[0]], color=COLORS[i])
         
-    return fig, fig2
+        gain = np.polyfit(1e-3*np.array(fe), np.array(fout), 1)
+        AX[1][0].plot(np.array(fe), np.array(fout), '-', color=COLORS[i], lw=2)
+        # AX[1][0].plot(np.array(fe), np.polyval(gain, 1e-3*np.array(fe)), '--', color=COLORS[i], lw=1)
+        AX[1][0].fill_between(np.array(fe), (np.array(fout)-np.array(sfout)),
+                              (np.array(fout)+np.array(sfout)),
+                              lw=0., color=COLORS[i], alpha=.3)
+        AX[1][1].bar([i], [gain[0]], color=COLORS[i])
+
+    AX[0][0].set_title('                                   evoked depolarization')
+    set_plot(AX[0][0], ylabel=r'$\delta V_m$ (mV)', xlabel=r'$\nu_e^{stim}$ (Hz)')
+    AX[1][0].set_title('                                   evoked spiking')
+    set_plot(AX[1][0], xlabel=r'$\nu_e^{stim}$ (Hz)', ylabel=r'$\delta \nu_{out}$ (Hz)')
+    set_plot(AX[0][1], ylabel='gain (mV/kHz)  ',
+             xticks=range(args.N_state_discretization),
+             xticks_labels=['BA', 'IA', 'SA'])
+    set_plot(AX[1][1], ylabel='gain (Hz/kHz)  ',
+             xticks=range(args.N_state_discretization),
+             xticks_labels=['BA', 'IA', 'SA'])
+    
+    return fig, AX
 
 
 
 if __name__ == '__main__':
 
     import matplotlib.pylab as plt
-
 
     import argparse
     # First a nice documentation 
@@ -364,10 +346,8 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--save", help="save the figures", action="store_true")
     parser.add_argument("-rd", "--raw_data", action="store_true")
     parser.add_argument("-ta", "--trial_average_analysis", action="store_true")
-    parser.add_argument("-ca", "--conductance_analysis", action="store_true")
-    parser.add_argument("-da", "--depol_analysis", action="store_true")
+    parser.add_argument("-sa", "--sumup_analysis", action="store_true")
     args = parser.parse_args()
-
 
     if not os.path.isfile(args.filename):
         print('------------------------------------------------------------')
@@ -378,18 +358,19 @@ if __name__ == '__main__':
         args.filename = choose_a_file_based_on_keyboard_input(last_dir, extension='RTXI.h5', Nmax=5)
 
 
-    COLORS = [get_linear_colormap(Blue, Orange)(i/(args.N_state_discretization-1)) for i in range(args.N_state_discretization)]
+    COLORS = [get_linear_colormap(Orange, Blue)(i/(args.N_state_discretization-1)) for i in range(args.N_state_discretization)]
         
     print('[...] loading data')
     data = load_data(args.filename)
     print('[...] analyzing')
     if args.trial_average_analysis:
-        make_trial_average_figure(data, args);show()
-    elif args.conductance_analysis:
-        make_conductance_fig(data, args);show()
-    elif args.depol_analysis:
-        make_depol_fig(data, args);show()
-    elif args.raw_data:
-        make_raw_data_figure(data, args);show()
-    # else:
-    #     quick_conductance_estimate(data, args)
+        fig, _  = make_trial_average_figure(data, args)
+    elif args.sumup_analysis:
+        fig, _  = make_sumup_fig(data, args)
+    else:
+        fig, _  = make_raw_data_figure(data, args)
+
+    if args.save:
+        fig.savefig(desktop+'fig.svg')
+    else:
+        show()
