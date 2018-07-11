@@ -114,8 +114,7 @@ def compute_network_states_and_responses(data, args,
     data['t_window'] = t_window
     for key in keys:
         data[key.upper()] = np.array(data[key.upper()])
-    data['FREQ_LEVELS'] = np.array(Freq_levels)
-    data['SEED_LEVELS'] = np.array(Seed_levels)
+
     data['Vm_Responses'] = np.array(Vm_Responses)
     data['Spike_Responses'] = Spike_Responses
     data['LFP_levels'] = np.array(LFP_levels)
@@ -204,7 +203,7 @@ def make_trial_average_figure(data, args):
     # run analysis
     compute_network_states_and_responses(data, args)
 
-    data['freq_levels'] = np.unique(data['FREQ_LEVELS'])
+    data['freq_levels'] = np.unique(data['FREQ_VECTOR'])
     
     fig, AX = figure(figsize=(.2*len(data['freq_levels']),.4),
                      axes=(2, len(data['freq_levels'])),
@@ -214,7 +213,7 @@ def make_trial_average_figure(data, args):
     number_of_common_trials = 1000
     for a, f in enumerate(data['freq_levels']):
         # loop over frequency levels
-        cond = (data['FREQ_LEVELS']==f)
+        cond = (data['FREQ_VECTOR']==f)
         for i in range(args.N_state_discretization):
             true_cond = data['cond_state_'+str(i+1)] & cond
             AX[1][a].plot(1e3*data['t_window'],
@@ -226,12 +225,12 @@ def make_trial_average_figure(data, args):
                                   lw=0., color=COLORS[i], alpha=.3)
             # for the raster plot, we want a vcommon trial number
             number_of_common_trials = np.min([number_of_common_trials,\
-                                              len(data['FREQ_LEVELS'][true_cond])])
-            print(len(data['FREQ_LEVELS'][true_cond]))
+                                              len(data['FREQ_VECTOR'][true_cond])])
+            print(len(data['FREQ_VECTOR'][true_cond]))
 
     for a, f in enumerate(data['freq_levels']):
         # loop over frequency levels
-        cond = (data['FREQ_LEVELS']==f)
+        cond = (data['FREQ_VECTOR']==f)
         for i in range(args.N_state_discretization):
             true_cond = data['cond_state_'+str(i+1)] & cond
             for k, s in enumerate(np.arange(len(true_cond))[true_cond][:number_of_common_trials]):
@@ -276,9 +275,9 @@ def make_sumup_fig(data, args):
 
     for i in range(args.N_state_discretization):
         fout, sfout, depol, sdepol, fe = [], [], [], [], []
-        for a, f in enumerate(np.unique(data['FREQ_LEVELS'])):
+        for a, f in enumerate(np.unique(data['FREQ_VECTOR'])):
             # loop over frequency levels
-            cond = (data['FREQ_LEVELS']==f)
+            cond = (data['FREQ_VECTOR']==f)
             true_cond = data['cond_state_'+str(i+1)] & cond
 
             fout.append(np.mean(data['Firing_levels_post'][true_cond]-data['Firing_levels_pre'][true_cond]))
