@@ -178,7 +178,7 @@ SynapticBarrages::set_filename(void)
     QDir().mkdir(data_dir); } 
   filename = data_dir;
   char hms[20];
-  strftime(hms, 24, "%H:%M:%S.csteps.JSON", localtime(&now));
+  strftime(hms, 24, "%H:%M:%S.JSON", localtime(&now));
   filename += hms;
 }
 
